@@ -8,8 +8,17 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.crashinvaders.vfx.VfxManager;
+import com.crashinvaders.vfx.effects.ChainVfxEffect;
+import com.crashinvaders.vfx.effects.ChromaticAberrationEffect;
+import com.crashinvaders.vfx.effects.FilmGrainEffect;
+import com.crashinvaders.vfx.effects.GaussianBlurEffect;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms.
@@ -24,12 +33,14 @@ public class Main extends ApplicationAdapter {
     private Viewport viewport;
     private OrthographicCamera camera;
 
-    // FBO
-    private FrameBuffer fbo;
-
     // Rendering
     private SpriteBatch batch;
     private Texture screenshot;
+
+    // FBO & VFX
+    private FrameBuffer fbo;
+    private VfxManager vfxManager;
+    private List<ChainVfxEffect> vfxEffects = new ArrayList<>();
 
     @Override
     public void create() {
@@ -44,6 +55,25 @@ public class Main extends ApplicationAdapter {
         // Create rendering stuff
         batch = new SpriteBatch();
         screenshot = new Texture("screenshot.png");
+
+        // Create VFX
+        vfxManager = new VfxManager(Pixmap.Format.RGBA8888, WIDTH, HEIGHT);
+        {
+            ChainVfxEffect vfxEffect = new GaussianBlurEffect();
+            vfxManager.addEffect(vfxEffect);
+            vfxEffects.add(vfxEffect);
+        }
+        {
+            ChainVfxEffect vfxEffect = new ChromaticAberrationEffect(5);
+            vfxManager.addEffect(vfxEffect);
+            vfxEffects.add(vfxEffect);
+        }
+        {
+            ChainVfxEffect vfxEffect = new FilmGrainEffect();
+            vfxManager.addEffect(vfxEffect);
+            vfxEffects.add(vfxEffect);
+        }
+
     }
 
     @Override
@@ -56,29 +86,52 @@ public class Main extends ApplicationAdapter {
         viewport.apply(false);
         batch.setProjectionMatrix(camera.combined);
 
-        // Draw game to FBO
+        // Begin FBO
+        /*
         fbo.begin();
         Gdx.gl.glClearColor(0.15f, 0.815f, 0.2f, 1f); // Green
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        */
+
+        // Begin VFX
+        vfxManager.update(Gdx.graphics.getDeltaTime());
+        vfxManager.cleanUpBuffers(); // Clean up internal buffers, as we don't need any information from the last render.
+        vfxManager.beginInputCapture(); // Begin render to an off-screen buffer.
+
+        // Draw game
         batch.begin();
         batch.setColor(1, 1, 1, 1f);
         batch.draw(screenshot, 0, 0, WIDTH, HEIGHT);
         batch.end();
+
+        // End FBO
+        /*
         fbo.end();
+         */
+
+        // End VFX
+        vfxManager.endInputCapture(); // End render to an off-screen buffer.
+        vfxManager.applyEffects(); // Apply the effects chain to the captured frame.
 
         // Apply viewport
         viewport.apply(true);
         batch.setProjectionMatrix(camera.combined);
 
         // Draw FBO to screen
+        /*
         batch.begin();
         batch.draw(fbo.getColorBufferTexture(), 0, 0, WIDTH, HEIGHT, 0, 0, 1, 1);
         batch.end();
+         */
+
+        // Draw VFX to the screen
+        vfxManager.renderToScreen(viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight());
     }
 
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height);
+        vfxManager.resize(width, height);
     }
 
     @Override
@@ -86,5 +139,7 @@ public class Main extends ApplicationAdapter {
         fbo.dispose();
         batch.dispose();
         screenshot.dispose();
+        vfxManager.dispose();
+        vfxEffects.forEach(Disposable::dispose);
     }
 }
