@@ -11,34 +11,39 @@ import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
-/** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
+/**
+ * {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms.
+ */
 public class Main extends ApplicationAdapter {
+    // Internal game size
     public static final int WIDTH = 1920;
     public static final int HEIGHT = 1080;
 
 
+    // Cameras and viewports
     private Viewport viewport;
-    private OrthographicCamera viewportCamera;
-    private OrthographicCamera simpleCamera;
+    private OrthographicCamera camera;
 
+    // FBO
     private FrameBuffer fbo;
 
+    // Rendering
     private SpriteBatch batch;
     private Texture screenshot;
-    private Texture logo;
 
     @Override
     public void create() {
-        viewportCamera = new OrthographicCamera();
-        simpleCamera = new OrthographicCamera();
-        viewport = new FitViewport(WIDTH, HEIGHT, viewportCamera);
+        // Create viewport
+        camera = new OrthographicCamera();
+        viewport = new FitViewport(WIDTH, HEIGHT, camera);
         viewport.apply();
 
+        // Create FBO
         fbo = new FrameBuffer(Pixmap.Format.RGBA8888, WIDTH, HEIGHT, false);
 
+        // Create rendering stuff
         batch = new SpriteBatch();
         screenshot = new Texture("screenshot.png");
-        logo = new Texture("libgdx.png");
     }
 
     @Override
@@ -47,57 +52,39 @@ public class Main extends ApplicationAdapter {
         Gdx.gl.glClearColor(0.15f, 0.15f, 0.2f, 1f); // Dark blue
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // Apply viewport
+        viewport.apply(false);
+        batch.setProjectionMatrix(camera.combined);
+
         // Draw game to FBO
         fbo.begin();
         Gdx.gl.glClearColor(0.15f, 0.815f, 0.2f, 1f); // Green
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        drawGameScreenshot(1f);
+        batch.begin();
+        batch.setColor(1, 1, 1, 1f);
+        batch.draw(screenshot, 0, 0, WIDTH, HEIGHT);
+        batch.end();
         fbo.end();
 
-        // Draw FBO to screen
-        drawFboToScreen();
-
-        // Draw expected result
-        drawGameScreenshot(0.1f);
-    }
-
-    private void drawGameScreenshot(float alpha) {
         // Apply viewport
         viewport.apply(true);
+        batch.setProjectionMatrix(camera.combined);
 
-        // Set batch matrices
-        batch.setProjectionMatrix(viewportCamera.projection);
-        batch.setTransformMatrix(viewportCamera.view);
-
-        // Draw textures
+        // Draw FBO to screen
         batch.begin();
-        batch.setColor(1, 1, 1, alpha);
-        batch.draw(screenshot, 0, 0, WIDTH, HEIGHT);
-        batch.draw(logo, 140, 210);
-        batch.end();
-    }
-
-    private void drawFboToScreen() {
-        // Reset batch matrices
-        batch.setProjectionMatrix(simpleCamera.projection);
-        batch.setTransformMatrix(simpleCamera.view);
-
-        // End FBO and draw it to the screen
-        batch.begin();
-        batch.draw(fbo.getColorBufferTexture(), viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight(), 0, 0, 1, 1);
+        batch.draw(fbo.getColorBufferTexture(), 0, 0, WIDTH, HEIGHT, 0, 0, 1, 1);
         batch.end();
     }
 
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height);
-        simpleCamera.setToOrtho(false, width, height);
     }
 
     @Override
     public void dispose() {
+        fbo.dispose();
         batch.dispose();
         screenshot.dispose();
-        logo.dispose();
     }
 }
